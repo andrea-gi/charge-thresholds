@@ -6,6 +6,7 @@
 
 const Applet = imports.ui.applet;
 const PopupMenu = imports.ui.popupMenu;
+const RadioButton = imports.ui.radioButton;
 const Settings = imports.ui.settings;
 const Main = imports.ui.main;
 const GLib = imports.gi.GLib;
@@ -94,6 +95,27 @@ function describeShort(l) {
     return l.start ? "%d-%d%%".format(l.start, l.stop) : "%d%%".format(l.stop);
 }
 
+// Menu row with a radio dot pinned to the right edge. Cinnamon's built-in
+// ornament sits in a column shared with every label in the menu (including
+// the open Custom sub-menu), so it shifted when Custom opened or closed.
+class RadioRow extends PopupMenu.PopupBaseMenuItem {
+    _init(text) {
+        super._init();
+        this.label = new St.Label({ text });
+        this.addActor(this.label, { span: 0 });
+        this._radio = new RadioButton.RadioBox(false);
+        this.addActor(this._radio.actor, { span: -1, align: St.Align.END });
+    }
+
+    setLabel(text) {
+        this.label.set_text(text);
+    }
+
+    setChecked(checked) {
+        this._radio.setToggleState(checked);
+    }
+}
+
 class ChargeLimitApplet extends Applet.IconApplet {
     constructor(metadata, orientation, panelHeight, instanceId) {
         super(orientation, panelHeight, instanceId);
@@ -144,11 +166,11 @@ class ChargeLimitApplet extends Applet.IconApplet {
 
         this.menu.addMenuItem(new PopupMenu.PopupSeparatorMenuItem());
 
-        this._saveItem = new PopupMenu.PopupMenuItem("");
+        this._saveItem = new RadioRow("");
         this._saveItem.connect("activate", () => this._run("apply", this._savePreset()));
         this.menu.addMenuItem(this._saveItem);
 
-        this._fullItem = new PopupMenu.PopupMenuItem("Full charge   100%");
+        this._fullItem = new RadioRow("Full charge   100%");
         this._fullItem.connect("activate", () => this._run("apply", FULL));
         this.menu.addMenuItem(this._fullItem);
 
@@ -300,8 +322,8 @@ class ChargeLimitApplet extends Applet.IconApplet {
         const isSave = sameLimits(cur, this._savePreset());
         const isFull = !!cur && !isSave && cur.stop >= 100;
         const isCustom = !!cur && !isSave && !isFull;
-        this._saveItem.setOrnament(PopupMenu.OrnamentType.DOT, isSave);
-        this._fullItem.setOrnament(PopupMenu.OrnamentType.DOT, isFull);
+        this._saveItem.setChecked(isSave);
+        this._fullItem.setChecked(isFull);
         this._customItem.label.set_text(isCustom ? "Custom   " + describeShort(cur) : "Custom");
 
         const enabled = !!cur && helperOk && !this._busy;
