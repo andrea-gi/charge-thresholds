@@ -1,0 +1,39 @@
+{
+  "head-presets": {
+    "type": "header",
+    "description": "\"Save battery\" preset"
+  },
+  "save-start": {
+    "type": "spinbutton",
+    "default": 75,
+    "min": 0,
+    "max": 95,
+    "step": 5,
+    "units": "%",
+    "description": "Resume charging below",
+    "tooltip": "Charging starts again when the battery drops below this level"
+  },
+  "save-stop": {
+    "type": "spinbutton",
+    "default": 80,
+    "min": 50,
+    "max": 100,
+    "step": 5,
+    "units": "%",
+    "description": "Stop charging at",
+    "tooltip": "Charging stops when the battery reaches this level"
+  },
+  "head-general": {
+    "type": "header",
+    "description": "General"
+  },
+  "refresh-interval": {
+    "type": "spinbutton",
+    "default": 60,
+    "min": 10,
+    "max": 600,
+    "step": 10,
+    "units": "seconds",
+    "description": "Refresh status every"
+  }
+}

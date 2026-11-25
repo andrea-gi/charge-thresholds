@@ -1,0 +1,8 @@
+{
+  "uuid": "charge-thresholds@andrea-gi",
+  "name": "Battery Charge Limit",
+  "description": "Set the battery charge limit (TLP thresholds) from the panel, temporarily or kept after reboot",
+  "icon": "battery-level-80-symbolic",
+  "version": "0.1.0",
+  "max-instances": 1
+}

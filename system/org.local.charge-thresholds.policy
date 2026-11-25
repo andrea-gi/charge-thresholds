@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE policyconfig PUBLIC
+ "-//freedesktop//DTD PolicyKit Policy Configuration 1.0//EN"
+ "http://www.freedesktop.org/standards/PolicyKit/1/policyconfig.dtd">
+<policyconfig>
+  <vendor>charge-thresholds (local)</vendor>
+
+  <action id="org.local.charge-thresholds.set">
+    <description>Change battery charge limit</description>
+    <message>Authentication is required to change the battery charge limit</message>
+    <icon_name>battery</icon_name>
+    <defaults>
+      <!-- remote / non-local sessions: always ask -->
+      <allow_any>auth_admin</allow_any>
+      <!-- local but not the foreground session: always ask -->
+      <allow_inactive>auth_admin</allow_inactive>
+      <!-- your active desktop session: ask, then remember for a few minutes -->
+      <allow_active>auth_admin_keep</allow_active>
+    </defaults>
+    <!-- Binds this action to exactly this program when run via pkexec -->
+    <annotate key="org.freedesktop.policykit.exec.path">/usr/local/libexec/charge-thresholds-helper</annotate>
+  </action>
+</policyconfig>

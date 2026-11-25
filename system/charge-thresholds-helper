@@ -1,0 +1,83 @@
+#!/bin/bash
+# Root helper for the Battery Charge Limit applet. Run via pkexec.
+#
+#   charge-thresholds-helper apply   START STOP   # until reboot
+#   charge-thresholds-helper persist START STOP   # saved in /etc/tlp.d, then applied
+#   charge-thresholds-helper detect                # print "<battery> <tlp key>" (no root needed)
+#
+# START 0 = vendor default / no start threshold. START 0 + STOP 100 = full charge.
+
+set -euo pipefail
+export PATH=/usr/sbin:/usr/bin:/sbin:/bin
+export LC_ALL=C
+umask 022
+
+readonly DROPIN=/etc/tlp.d/90-charge-thresholds.conf
+readonly LOCK=/run/charge-thresholds.lock
+readonly MIN_STOP=50
+readonly MIN_GAP=5
+
+log() { logger -t charge-thresholds -- "$*" 2>/dev/null || true; }
+die() { echo "Error: $*" >&2; log "error: $*"; exit 1; }
+usage() { echo "Usage: ${0##*/} apply|persist START STOP | detect" >&2; exit 2; }
+
+# Main battery with charge threshold support. TLP uses the BAT0 config key for
+# BAT0/BATT/BATC/CMB0 and BAT1 for BAT1.
+detect() {
+    local d name
+    for d in /sys/class/power_supply/*; do
+        name=${d##*/}
+        [[ $name =~ ^(BAT[0-9]|BATT|BATC|CMB[0-9])$ ]] || continue
+        [[ -r $d/charge_control_end_threshold ]] || continue
+        BAT=$name
+        KEY=$([[ $name == BAT1 ]] && echo BAT1 || echo BAT0)
+        SYSFS=$d
+        return 0
+    done
+    return 1
+}
+
+[[ ${1:-} == detect && $# -eq 1 ]] && { detect && echo "$BAT $KEY"; exit; }
+
+[[ $EUID -eq 0 ]] || die "must run as root (via pkexec or sudo)"
+[[ $# -eq 3 ]] || usage
+cmd=$1 start=$2 stop=$3
+[[ $cmd == apply || $cmd == persist ]] || usage
+
+int_re='^(0|[1-9][0-9]?|100)$'   # no leading zeros (bash reads 080 as octal)
+[[ $start =~ $int_re ]] || die "start must be an integer 0-100, got '$start'"
+[[ $stop  =~ $int_re ]] || die "stop must be an integer 0-100, got '$stop'"
+(( stop >= MIN_STOP )) || die "stop must be at least $MIN_STOP%"
+(( start <= stop - MIN_GAP )) || die "start must be at least $MIN_GAP below stop"
+
+detect || die "no battery with charge threshold support found"
+
+exec 9>"$LOCK"
+flock -w 15 9 || die "another change is in progress"
+
+if [[ $cmd == persist ]]; then
+    tmp=$(mktemp /etc/tlp.d/.90-charge-thresholds.XXXXXX)
+    trap 'rm -f "$tmp"' EXIT
+    printf '%s\n' \
+        "# Managed by the Battery Charge Limit applet; changes here get overwritten." \
+        "START_CHARGE_THRESH_$KEY=$start" \
+        "STOP_CHARGE_THRESH_$KEY=$stop" > "$tmp"
+    chmod 644 "$tmp"
+    mv -f "$tmp" "$DROPIN"
+    trap - EXIT
+fi
+
+if (( start == 0 && stop == 100 )) && [[ $cmd == apply ]]; then
+    tlp fullcharge "$BAT" >&2 || die "tlp fullcharge failed"
+else
+    tlp setcharge "$start" "$stop" "$BAT" >&2 || die "tlp setcharge failed"
+    actual=$(<"$SYSFS/charge_control_end_threshold")
+    [[ $actual == "$stop" ]] || die "kernel reports stop=$actual, expected $stop"
+    if (( start > 0 )) && [[ -r $SYSFS/charge_control_start_threshold ]]; then
+        actual=$(<"$SYSFS/charge_control_start_threshold")
+        [[ $actual == "$start" ]] || die "kernel reports start=$actual, expected $start"
+    fi
+fi
+
+log "uid=${PKEXEC_UID:-${SUDO_UID:-0}} $cmd $BAT start=$start stop=$stop"
+echo "OK"
