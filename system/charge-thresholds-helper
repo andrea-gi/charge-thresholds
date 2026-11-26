@@ -67,16 +67,17 @@ if [[ $cmd == persist ]]; then
     trap - EXIT
 fi
 
-if (( start == 0 && stop == 100 )) && [[ $cmd == apply ]]; then
-    tlp fullcharge "$BAT" >&2 || die "tlp fullcharge failed"
+# Full charge = vendor defaults (DEF). Not `tlp fullcharge`: it refuses on battery.
+if (( start == 0 && stop == 100 )); then
+    tlp setcharge DEF DEF "$BAT" >&2 || die "tlp setcharge failed"
 else
     tlp setcharge "$start" "$stop" "$BAT" >&2 || die "tlp setcharge failed"
-    actual=$(<"$SYSFS/charge_control_end_threshold")
-    [[ $actual == "$stop" ]] || die "kernel reports stop=$actual, expected $stop"
-    if (( start > 0 )) && [[ -r $SYSFS/charge_control_start_threshold ]]; then
-        actual=$(<"$SYSFS/charge_control_start_threshold")
-        [[ $actual == "$start" ]] || die "kernel reports start=$actual, expected $start"
-    fi
+fi
+actual=$(<"$SYSFS/charge_control_end_threshold")
+[[ $actual == "$stop" ]] || die "kernel reports stop=$actual, expected $stop"
+if (( start > 0 )) && [[ -r $SYSFS/charge_control_start_threshold ]]; then
+    actual=$(<"$SYSFS/charge_control_start_threshold")
+    [[ $actual == "$start" ]] || die "kernel reports start=$actual, expected $start"
 fi
 
 log "uid=${PKEXEC_UID:-${SUDO_UID:-0}} $cmd $BAT start=$start stop=$stop"

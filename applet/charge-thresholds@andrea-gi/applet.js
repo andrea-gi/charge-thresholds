@@ -304,18 +304,20 @@ class ChargeLimitApplet extends Applet.IconApplet {
         const cur = this._current;
 
         let note = "";
-        if (!cur)
+        if (this._busy)
+            this._statusItem.setLabel("Applying…");
+        else if (!cur)
             this._statusItem.setLabel(this._bat ? "Reading battery..." : "No battery with charge limit support");
         else {
             this._statusItem.setLabel(describe(cur));
             if (!helperOk)
                 note = "Helper not installed - run install-system.sh";
             else if (sameLimits(cur, this._saved))
-                note = "Saved · kept after reboot";
+                note = "Kept after reboot";
             else if (this._saved)
-                note = "Until reboot · saved setting: " + describeShort(this._saved);
+                note = "Back to " + describeShort(this._saved) + " after reboot";
             else
-                note = "Until reboot · no saved setting";
+                note = "Until reboot";
         }
         this._persistItem.setLabel(note);
 
@@ -333,6 +335,16 @@ class ChargeLimitApplet extends Applet.IconApplet {
 
         this._setIcon(iconForStop(cur ? cur.stop : 100));
         this.set_applet_tooltip(cur ? describe(cur) + "\n" + note : "Battery charge limit");
+        this._relayoutMenu();
+    }
+
+    // Cinnamon only re-lays out an open menu's items when the theme gives the
+    // menu a background image, so changed labels could stay stale until hover.
+    _relayoutMenu() {
+        if (!this.menu.isOpen) return;
+        for (const box of [this.menu.box, this._customItem.menu.box])
+            for (const child of box.get_children())
+                child.queue_relayout();
     }
 
     _setIcon(name) {
@@ -375,9 +387,10 @@ class ChargeLimitApplet extends Applet.IconApplet {
             Main.notify("Battery charge limit",
                 describe(limits) + " · " + (cmd === "persist" ? "kept after reboot" : "until reboot"));
         } else if (!PKEXEC_CANCELLED.includes(code)) {
+            // First "Error:" line: TLP's own reason comes before the helper's summary.
             const lines = stderr.trim().split("\n");
             Main.notifyError("Could not change battery charge limit",
-                lines.filter(l => l.startsWith("Error:")).pop() || stderr.trim() || "Unknown error");
+                lines.find(l => l.startsWith("Error:")) || stderr.trim() || "Unknown error");
         }
         this._refresh();
     }
